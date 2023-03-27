@@ -7,19 +7,20 @@ import (
 
 type User struct {
 	Id             int    `json:"id" db:"id"`
-	Username       string `json:"username" db:"username"`
+	Name           string `json:"name" db:"name"`
+	Surname        string `json:"surname" db:"surname"`
 	Email          string `json:"email" db:"email"`
 	HashedPassword string `json:"hashed_password" db:"hashed_password"`
 }
 
 func (r *Repository) Login(ctx context.Context, email, hashedPassword string) (u User, err error) {
-	row := r.pool.QueryRow(ctx, `select id, username, email from users where email = $1 AND hashed_password = $2`, email, hashedPassword)
+	row := r.pool.QueryRow(ctx, `select id, name, surname, email from users where email = $1 AND hashed_password = $2`, email, hashedPassword)
 	if err != nil {
 		err = fmt.Errorf("failed to query data: %w", err)
 		return
 	}
 
-	err = row.Scan(&u.Id, &u.Username, &u.Email)
+	err = row.Scan(&u.Id, &u.Name, &u.Surname, &u.Email)
 	if err != nil {
 		err = fmt.Errorf("failed to query data: %w", err)
 		return

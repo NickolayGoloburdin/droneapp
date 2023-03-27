@@ -29,11 +29,10 @@ func (a app) Routes(r *httprouter.Router) {
 		// Adjust status code to 204
 		w.WriteHeader(http.StatusNoContent)
 	})
-	r.GET("/auth/signin", func(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		//a.LoginPage(rw, "")
-	})
-	r.POST("/auth/update", mw.Logger(dbHandler.Login, "update"))
-	r.POST("/auth/signup", mw.Logger(dbHandler.Login, "signup"))
+	r.GET("/auth/getdata", mw.Logger(handlers.VerifyJWT(handlers.GetDataFromToken), "Token"))
+
+	r.POST("/auth/signin", mw.Logger(dbHandler.Signup, "signup"))
+	r.POST("/auth/login", mw.Logger(dbHandler.Login, "login"))
 }
 
 func NewApp(ctx context.Context, dbpool *pgxpool.Pool) *app {

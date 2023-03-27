@@ -5,10 +5,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	repository "github.com/Nickolaygoloburdin/droneapp/internal/database"
@@ -26,105 +25,93 @@ func NewDBHandler(ctx context.Context, repo *repository.Repository) *DBHandler {
 	return &DBHandler{ctx, repo}
 }
 
-func (dbh DBHandler) handlePage(writer http.ResponseWriter, request *http.Request) {
-	_, err := generateJWT()
-	if err != nil {
-		log.Fatalln("Error generating JWT", err)
-	}
-
-	writer.Header().Set("Token", "%v")
-	type_ := "application/json"
-	writer.Header().Set("Content-Type", type_)
-	var message Message
-	err = json.NewDecoder(request.Body).Decode(&message)
-	if err != nil {
-		return
-	}
-	err = json.NewEncoder(writer).Encode(message)
-	if err != nil {
-		return
-	}
-}
-
-func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	username := strings.TrimSpace(r.FormValue("username"))
-	email := strings.TrimSpace(r.FormValue("email"))
-	password := strings.TrimSpace(r.FormValue("first_name")) + strings.TrimSpace(r.FormValue("last_name"))
-
-	// if name == "" || surname == "" || login == "" || password == "" {
-	// 	a.SignupPage(rw, "Все поля должны быть заполнены!")
-	// 	return
-	// }
-
-	// if password != password2 {
-	// 	a.SignupPage(rw, "Пароли не совпадают! Попробуйте еще")
-	// 	return
-	// }
-
-	hash := md5.Sum([]byte(password))
-	hashedPass := hex.EncodeToString(hash[:])
-
-	err := a.repo.AddNewUser(a.ctx, username, email, hashedPass)
-	if err != nil {
-		//a.SignupPage(rw, fmt.Sprintf("Ошибка создания пользователя: %v", err))
-		return
-	}
-
-}
-
 var sampleSecretKey = "hellofromback"
 
 func (dbh DBHandler) Login(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	rw.Header().Set("Content-Type", "application/json")
+
 	var user models.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		return
 	}
-	login := user.Username
-	password := user.Password
-	email := user.Email
+	email := user.Account.Email
+	password := user.Account.Password
 
-	if login == "" || password == "" {
-		//a.LoginPage(rw, "Необходимо указать логин и пароль!")
+	if email == "" || password == "" {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		rw.Write([]byte("You need to fill all fields"))
 		return
 	}
-
-	return c.JSON(LoginResponse{AccessToken: t})
-
-	a.cache[hashedToken] = dbuser
-
-}
-func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	username := strings.TrimSpace(r.FormValue("username"))
-	email := strings.TrimSpace(r.FormValue("email"))
-	password := strings.TrimSpace(r.FormValue("first_name")) + strings.TrimSpace(r.FormValue("last_name"))
-
-	// if name == "" || surname == "" || login == "" || password == "" {
-	// 	a.SignupPage(rw, "Все поля должны быть заполнены!")
-	// 	return
-	// }
-
-	// if password != password2 {
-	// 	a.SignupPage(rw, "Пароли не совпадают! Попробуйте еще")
-	// 	return
-	// }
 
 	hash := md5.Sum([]byte(password))
 	hashedPass := hex.EncodeToString(hash[:])
 
-	err := a.repo.AddNewUser(a.ctx, username, email, hashedPass)
+	dbuser, err := dbh.repo.Login(dbh.ctx, email, hashedPass)
 	if err != nil {
-		//a.SignupPage(rw, fmt.Sprintf("Ошибка создания пользователя: %v", err))
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		rw.Write([]byte("You didnt sign up"))
+	}
+
+	token, err := generateJWT(models.TokenData{Name: dbuser.Name, Surname: dbuser.Surname, Email: dbuser.Email})
+
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		rw.Write([]byte("Error generate JWT"))
 		return
 	}
+	var resp models.SignupResponse
+	resp.User.Token = token
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(resp)
+
 }
-func generateJWT() (string, error) {
+func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
+
+	var user models.SignupRequest
+	err := json.NewDecoder(r.Body).Decode(&user)
+
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if user.Account.Email == "" || user.Account.Name == "" || user.Account.Surname == "" || user.Account.Password == "" {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		rw.Write([]byte("You need to fill all fields"))
+		return
+	}
+
+	hash := md5.Sum([]byte(user.Account.Password))
+	hashedPass := hex.EncodeToString(hash[:])
+
+	err = dbh.repo.AddNewUser(dbh.ctx, user.Account.Name+user.Account.Surname, user.Account.Email, hashedPass)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		rw.Write([]byte("Error in database"))
+		return
+	}
+	tokenData := models.TokenData{Name: user.Account.Name, Surname: user.Account.Surname, Email: user.Account.Email}
+	token, err := generateJWT(tokenData)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		rw.Write([]byte("Error generate JWT"))
+		return
+	}
+	var resp models.SignupResponse
+	resp.User.Token = token
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(resp)
+
+}
+func generateJWT(user models.TokenData) (string, error) {
 	token := jwt.New(jwt.SigningMethodEdDSA)
 	claims := token.Claims.(jwt.MapClaims)
-	claims["exp"] = time.Now().Add(10 * time.Minute)
+	claims["exp"] = time.Now().Add(40 * time.Minute)
 	claims["authorized"] = true
-	claims["user"] = "username"
+	claims["first_name"] = user.Name
+	claims["last_name"] = user.Surname
+	claims["email"] = user.Email
+
 	tokenString, err := token.SignedString(sampleSecretKey)
 	if err != nil {
 		return "Signing Error", err
@@ -134,8 +121,9 @@ func generateJWT() (string, error) {
 }
 
 // comment these
-func verifyJWT(endpointHandler func(writer http.ResponseWriter, request *http.Request)) http.HandlerFunc {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+func VerifyJWT(endpointHandler httprouter.Handle) httprouter.Handle {
+	return func(writer http.ResponseWriter,
+		request *http.Request, ps httprouter.Params) {
 		if request.Header["Token"] != nil {
 			token, err := jwt.Parse(request.Header["Token"][0], func(token *jwt.Token) (interface{}, error) {
 				_, ok := token.Method.(*jwt.SigningMethodECDSA)
@@ -160,7 +148,7 @@ func verifyJWT(endpointHandler func(writer http.ResponseWriter, request *http.Re
 			}
 			// if there's a token
 			if token.Valid {
-				endpointHandler(writer, request)
+				endpointHandler(writer, request, ps)
 			} else {
 				writer.WriteHeader(http.StatusUnauthorized)
 				_, err := writer.Write([]byte("You're Unauthorized due to invalid token"))
@@ -176,36 +164,43 @@ func verifyJWT(endpointHandler func(writer http.ResponseWriter, request *http.Re
 			}
 		}
 		// response for if there's no token header
-	})
+	}
 }
 
-func extractClaims(_ http.ResponseWriter, request *http.Request) (string, error) {
+func extractClaims(_ http.ResponseWriter, request *http.Request) (td models.TokenData, err error) {
 	if request.Header["Token"] != nil {
 		tokenString := request.Header["Token"][0]
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, error := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 
 			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
 				return nil, fmt.Errorf("there's an error with the signing method")
 			}
 			return sampleSecretKey, nil
 		})
-		if err != nil {
-			return "Error Parsing Token: ", err
+		if error != nil {
+			err = error
+			return
 		}
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if ok && token.Valid {
-			username := claims["username"].(string)
-			return username, nil
+
+			td.Name = claims["first_name"].(string)
+			td.Surname = claims["last_name"].(string)
+			td.Email = claims["email"].(string)
+			return
 		}
 	}
-
-	return "unable to extract claims", nil
+	err = errors.New("Cannot extract claims")
+	return
 }
 
-func authPage() {
-	token, _ := generateJWT()
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "http://localhost:8080/", nil)
-	req.Header.Set("Token", token)
-	_, _ = client.Do(req)
+func GetDataFromToken(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
+
+	resp, err := extractClaims(rw, r)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(resp)
 }
