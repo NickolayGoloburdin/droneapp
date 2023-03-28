@@ -25,7 +25,7 @@ func NewDBHandler(ctx context.Context, repo *repository.Repository) *DBHandler {
 	return &DBHandler{ctx, repo}
 }
 
-var sampleSecretKey = "hellofromback"
+var sampleSecretKey = []byte("hellofromback")
 
 func (dbh DBHandler) Login(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
@@ -68,6 +68,7 @@ func (dbh DBHandler) Login(rw http.ResponseWriter, r *http.Request, p httprouter
 func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
 	var user models.SignupRequest
+	fmt.Println(r.Body)
 	err := json.NewDecoder(r.Body).Decode(&user)
 
 	if err != nil {
@@ -84,7 +85,7 @@ func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httproute
 	hash := md5.Sum([]byte(user.Account.Password))
 	hashedPass := hex.EncodeToString(hash[:])
 
-	err = dbh.repo.AddNewUser(dbh.ctx, user.Account.Name+user.Account.Surname, user.Account.Email, hashedPass)
+	err = dbh.repo.AddNewUser(dbh.ctx, user.Account.Name, user.Account.Surname, user.Account.Email, hashedPass)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		rw.Write([]byte("Error in database"))
@@ -104,9 +105,9 @@ func (dbh DBHandler) Signup(rw http.ResponseWriter, r *http.Request, p httproute
 
 }
 func generateJWT(user models.TokenData) (string, error) {
-	token := jwt.New(jwt.SigningMethodEdDSA)
+	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
-	claims["exp"] = time.Now().Add(40 * time.Minute)
+	claims["exp"] = time.Now().Add(60 * time.Minute).Unix()
 	claims["authorized"] = true
 	claims["first_name"] = user.Name
 	claims["last_name"] = user.Surname
@@ -126,7 +127,7 @@ func VerifyJWT(endpointHandler httprouter.Handle) httprouter.Handle {
 		request *http.Request, ps httprouter.Params) {
 		if request.Header["Token"] != nil {
 			token, err := jwt.Parse(request.Header["Token"][0], func(token *jwt.Token) (interface{}, error) {
-				_, ok := token.Method.(*jwt.SigningMethodECDSA)
+				_, ok := token.Method.(*jwt.SigningMethodHMAC)
 				if !ok {
 					writer.WriteHeader(http.StatusUnauthorized)
 					_, err := writer.Write([]byte("You're Unauthorized"))
@@ -134,13 +135,13 @@ func VerifyJWT(endpointHandler httprouter.Handle) httprouter.Handle {
 						return nil, err
 					}
 				}
-				return "", nil
+				return sampleSecretKey, nil
 
 			})
 			// parsing errors result
 			if err != nil {
 				writer.WriteHeader(http.StatusUnauthorized)
-				_, err2 := writer.Write([]byte("You're Unauthorized due to error parsing the JWT"))
+				_, err2 := writer.Write([]byte(err.Error() + "\n"))
 				if err2 != nil {
 					return
 				}
@@ -172,7 +173,7 @@ func extractClaims(_ http.ResponseWriter, request *http.Request) (td models.Toke
 		tokenString := request.Header["Token"][0]
 		token, error := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 
-			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("there's an error with the signing method")
 			}
 			return sampleSecretKey, nil

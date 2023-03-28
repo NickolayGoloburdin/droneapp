@@ -29,8 +29,8 @@ func (r *Repository) Login(ctx context.Context, email, hashedPassword string) (u
 	return
 }
 
-func (r *Repository) AddNewUser(ctx context.Context, username, email, hashedPassword string) (err error) {
-	_, err = r.pool.Exec(ctx, `insert into users (name, surname, login, hashed_password) values ($1, $2, $3)`, username, email, hashedPassword)
+func (r *Repository) AddNewUser(ctx context.Context, name, surname, email, hashedPassword string) (err error) {
+	_, err = r.pool.Exec(ctx, `insert into users (name, surname, email, hashed_password) values ($1, $2, $3 , $4)`, name, surname, email, hashedPassword)
 	if err != nil {
 		err = fmt.Errorf("failed to exec data: %w", err)
 		return

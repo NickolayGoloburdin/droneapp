@@ -1,0 +1,7 @@
+CREATE table project (
+        projectid SERIAL PRIMARY KEY,
+        createdat timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        projectname varchar(50),
+        author INTEGER REFERENCES users (id),
+        comment varchar(200)
+)

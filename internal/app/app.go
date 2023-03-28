@@ -29,7 +29,7 @@ func (a app) Routes(r *httprouter.Router) {
 		// Adjust status code to 204
 		w.WriteHeader(http.StatusNoContent)
 	})
-	r.GET("/auth/getdata", mw.Logger(handlers.VerifyJWT(handlers.GetDataFromToken), "Token"))
+	r.GET("/auth/getdata", mw.Logger(handlers.GetDataFromToken, "Token"))
 
 	r.POST("/auth/signin", mw.Logger(dbHandler.Signup, "signup"))
 	r.POST("/auth/login", mw.Logger(dbHandler.Login, "login"))
