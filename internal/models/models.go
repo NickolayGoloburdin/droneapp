@@ -26,7 +26,9 @@ type Account struct {
 	Surname  string `json:"last_name"`
 }
 type TokenData struct {
-	Name    string `json:"first_name"`
-	Surname string `json:"last_name"`
-	Email   string `json:"email"`
+	Name       string `json:"first_name"`
+	Surname    string `json:"last_name"`
+	Email      string `json:"email"`
+	Expiration string `json:"expiration"`
+	Creation   string `json:"creation"`
 }

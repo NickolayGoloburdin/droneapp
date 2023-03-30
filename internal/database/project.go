@@ -12,21 +12,21 @@ type Project struct {
 	Comment     string `json:"comment" db:"comment"`
 }
 
-func (r *Repository) Login(ctx context.Context, email, hashedPassword string) (u User, err error) {
-	row := r.pool.QueryRow(ctx, `select id, name, surname, email from users where email = $1 AND hashed_password = $2`, email, hashedPassword)
-	if err != nil {
-		err = fmt.Errorf("failed to query data: %w", err)
-		return
-	}
+// func (r *Repository) Login(ctx context.Context, email, hashedPassword string) (u User, err error) {
+// 	row := r.pool.QueryRow(ctx, `select id, name, surname, email from users where email = $1 AND hashed_password = $2`, email, hashedPassword)
+// 	if err != nil {
+// 		err = fmt.Errorf("failed to query data: %w", err)
+// 		return
+// 	}
 
-	err = row.Scan(&u.Id, &u.Name, &u.Surname, &u.Email)
-	if err != nil {
-		err = fmt.Errorf("failed to query data: %w", err)
-		return
-	}
+// 	err = row.Scan(&u.Id, &u.Name, &u.Surname, &u.Email)
+// 	if err != nil {
+// 		err = fmt.Errorf("failed to query data: %w", err)
+// 		return
+// 	}
 
-	return
-}
+// 	return
+// }
 
 func (r *Repository) CreateProject(ctx context.Context, projectname, email, comment string) (err error) {
 	_, err = r.pool.Exec(ctx, `insert into projects (projectname, author, comment, author) 

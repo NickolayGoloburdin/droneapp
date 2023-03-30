@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	repository "github.com/Nickolaygoloburdin/droneapp/internal/database"
@@ -112,6 +113,7 @@ func generateJWT(user models.TokenData) (string, error) {
 	claims["first_name"] = user.Name
 	claims["last_name"] = user.Surname
 	claims["email"] = user.Email
+	claims["creation"] = time.Now().Unix()
 
 	tokenString, err := token.SignedString(sampleSecretKey)
 	if err != nil {
@@ -125,8 +127,9 @@ func generateJWT(user models.TokenData) (string, error) {
 func VerifyJWT(endpointHandler httprouter.Handle) httprouter.Handle {
 	return func(writer http.ResponseWriter,
 		request *http.Request, ps httprouter.Params) {
-		if request.Header["Token"] != nil {
-			token, err := jwt.Parse(request.Header["Token"][0], func(token *jwt.Token) (interface{}, error) {
+		if request.Header["Authorization"] != nil {
+			tokenstr := strings.Split(request.Header["Authorization"][0], " ")[1]
+			token, err := jwt.Parse(tokenstr, func(token *jwt.Token) (interface{}, error) {
 				_, ok := token.Method.(*jwt.SigningMethodHMAC)
 				if !ok {
 					writer.WriteHeader(http.StatusUnauthorized)
@@ -169,9 +172,9 @@ func VerifyJWT(endpointHandler httprouter.Handle) httprouter.Handle {
 }
 
 func extractClaims(_ http.ResponseWriter, request *http.Request) (td models.TokenData, err error) {
-	if request.Header["Token"] != nil {
-		tokenString := request.Header["Token"][0]
-		token, error := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	if request.Header["Authorization"] != nil {
+		tokenstr := strings.Split(request.Header["Authorization"][0], " ")[1]
+		token, error := jwt.Parse(tokenstr, func(token *jwt.Token) (interface{}, error) {
 
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("there's an error with the signing method")
