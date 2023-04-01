@@ -18,8 +18,10 @@ type app struct {
 func (a app) Routes(r *httprouter.Router) {
 
 	dbHandler := handlers.NewDBHandler(a.ctx, a.repo)
-	r.GET("/auth/update", mw.Logger(handlers.GetDataFromToken, "Token"))
+	phHandler := handlers.NewPhotoHandler(a.ctx, a.repo)
 
+	r.GET("/auth/update", mw.Logger(handlers.GetDataFromToken, "Token"))
+	r.POST("/upload/image", mw.Logger(phHandler.PostFile, "upload"))
 	r.POST("/auth/signup", mw.Logger(dbHandler.Signup, "signup"))
 	r.POST("/auth/signin", mw.Logger(dbHandler.Login, "login"))
 }
